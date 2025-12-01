@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, TokenAccount};
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
 declare_id!("bxZ8s8SSEi3qHiqWdQ1j5qTKEgwAy3gSoXf3TQDYSzB"); //decalring the contract's public key on chain.
 
@@ -22,10 +22,11 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub initializer_receive_token_account: Account<'info, TokenAccount>, //this is the account which will hold the receive token
 
+    // PDA storing escrow state; allocated with enough space for discriminator + EscrowAccount
     #[account(
-        init, 
-        payer = initializer, 
-        space = 112
+        init,
+        payer = initializer,
+        space = 8 + 32 + 32 + 32 + 8,
     )]
     pub initialize_escrow_struct_account: Account<'info, EscrowAccount>,
 
@@ -40,6 +41,8 @@ pub struct Initialize<'info> {
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
     pub system_program: Program<'info, System>,
+    pub token_program : Program<'info , Token>,
+    pub rent: Sysvar<'info , Rent>
 }
 
 #[account]

@@ -1,8 +1,10 @@
+cargo-features = ["edition2024"]
+
 [package]
 name = "escrow_contract"
 version = "0.1.0"
 description = "Created with Anchor"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -14,7 +16,7 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build" , "anchor-spl/idl-build"] 
 
 
 [dependencies]

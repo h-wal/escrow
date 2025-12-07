@@ -1,159 +1,109 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { assert } from "chai";
-import {
-  TOKEN_PROGRAM_ID,
-  createMint,
-  getAccount,
-  getOrCreateAssociatedTokenAccount,
-  mintTo,
-} from "@solana/spl-token";
+import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Keypair } from "@solana/web3.js"
+import { TOKEN_PROGRAM_ID, MINT_SIZE, createMint, createAccount, mintTo } from "@solana/spl-token";
+
 import { EscrowContract } from "../target/types/escrow_contract";
+import { expect } from "chai";
 
-describe("escrow_contract", () => {
-  const provider = anchor.AnchorProvider.env();
-  anchor.setProvider(provider);
+describe("test", () => {
+  // Configure the client to use the local cluster.s
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const provider = anchor.getProvider();
 
-  const program = anchor.workspace.escrowContract as Program<EscrowContract>;
-  const wallet = provider.wallet as anchor.Wallet;
-  const connection = provider.connection;
+  const program = anchor.workspace.escrow_contract as Program<EscrowContract>; // we are loding the smart contract from the workspace and type asserting it as a Program<EscrowContract> which comes from test/types
 
-  it("initializes and completes an escrow", async () => {
-    const escrowAmount = 1_000;
+  let initializer: Keypair;
 
-    // Create two mints: one for initializer deposit, one for taker deposit.
-    const depositMint = await createMint(
-      connection,
-      wallet.payer,
-      wallet.publicKey,
-      null,
-      0
-    );
-    const takerMint = await createMint(
-      connection,
-      wallet.payer,
-      wallet.publicKey,
-      null,
-      0
-    );
+  let mintA: PublicKey;
+  let initializerTokenA: PublicKey;
+  let initializerTokenB: PublicKey;
 
-    const initializerDepositTokenAccount =
-      await getOrCreateAssociatedTokenAccount(
-        connection,
-        wallet.payer,
-        depositMint,
-        wallet.publicKey
-      );
-    const initializerReceiveTokenAccount =
-      await getOrCreateAssociatedTokenAccount(
-        connection,
-        wallet.payer,
-        takerMint,
-        wallet.publicKey
-      );
+  let escrowPda: PublicKey;
+  let vaultAuthorityPda: PublicKey;
+  let vaultBump: number;
+  let vaultTokenAccount: PublicKey;
 
-    await mintTo(
-      connection,
-      wallet.payer,
-      depositMint,
-      initializerDepositTokenAccount.address,
-      wallet.publicKey,
-      escrowAmount
+  it("Is initialized!", async () => {
+
+    initializer = Keypair.generate();
+
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(initializer.publicKey, 2e9)
     );
 
-    const taker = anchor.web3.Keypair.generate();
-    await connection.confirmTransaction(
-      await connection.requestAirdrop(
-        taker.publicKey,
-        anchor.web3.LAMPORTS_PER_SOL
-      )
+    mintA = await createMint(
+      provider.connection,
+      initializer,
+      initializer.publicKey,
+      null, 
+      9
     );
 
-    const takerDepositTokenAccount = await getOrCreateAssociatedTokenAccount(
-      connection,
-      wallet.payer,
-      takerMint,
-      taker.publicKey
-    );
-    const takerReceiveTokenAccount = await getOrCreateAssociatedTokenAccount(
-      connection,
-      wallet.payer,
-      depositMint,
-      taker.publicKey
+    initializerTokenA = await createAccount(
+      provider.connection, initializer,
+      mintA, initializer.publicKey
     );
 
     await mintTo(
-      connection,
-      wallet.payer,
-      takerMint,
-      takerDepositTokenAccount.address,
-      wallet.publicKey,
-      escrowAmount
+      provider.connection,
+      initializer,
+      mintA,
+      initializerTokenA,
+      initializer.publicKey,
+      1_000_000_000
     );
 
-    const escrowAccount = anchor.web3.Keypair.generate();
-    const vaultTokenAccount = anchor.web3.Keypair.generate();
-    const [vaultAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), escrowAccount.publicKey.toBuffer()],
+    initializerTokenB = await createAccount(
+      provider.connection, initializer,
+      mintA, 
+      initializer.publicKey
+    );
+
+    [vaultAuthorityPda, vaultBump] = await PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("vault-authority"),
+        initializer.publicKey.toBuffer(),
+      ],
       program.programId
     );
 
-    await program.methods
-      .initialize(new anchor.BN(escrowAmount))
+    vaultTokenAccount = await anchor.utils.token.associatedAddress({
+      mint: mintA,
+      owner: vaultAuthorityPda,
+    })
+
+    escrowPda = Keypair.generate().publicKey;
+
+    const amount = new anchor.BN(500_000);
+
+    const tx = await program.methods
+      .initialize(amount)
       .accounts({
-        initializer: wallet.publicKey,
-        depositMint,
-        initializerDepositTokenAccount: initializerDepositTokenAccount.address,
-        initializerReceiveTokenAccount:
-          initializerReceiveTokenAccount.address,
-        escrowAccount: escrowAccount.publicKey,
-        vaultAuthority,
-        vaultTokenAccount: vaultTokenAccount.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+        initializer: initializer.publicKey,
+        initializerDepositTokenAccount: initializerTokenA,
+        initializerReceiveTokenAccount: initializerTokenB,
+        escrowAccount: escrowPda,
+        depositMint: mintA,
+        vaultAuthorityPda,
+        vaultTokenAccount,
+        SystemProgram: SystemProgram.programId,
+        TOKEN_PROGRAM_ID
       })
-      .signers([escrowAccount, vaultTokenAccount])
+      .signers([initializer])
       .rpc();
 
-    const vaultInfo = await getAccount(
-      connection,
-      vaultTokenAccount.publicKey
-    );
-    assert.equal(Number(vaultInfo.amount), escrowAmount);
+      console.log("Initialize TX:", tx);
+    
+      const escrowAccount = await program.account.escrowAccount.fetch(escrowPda);
+    // Add your test here.
 
-    await program.methods
-      .exchange()
-      .accounts({
-        taker: taker.publicKey,
-        initializer: wallet.publicKey,
-        takerDepositTokenAccount: takerDepositTokenAccount.address,
-        takerReceiveTokenAccount: takerReceiveTokenAccount.address,
-        initializerReceiveTokenAccount:
-          initializerReceiveTokenAccount.address,
-        vaultTokenAccount: vaultTokenAccount.publicKey,
-        vaultAuthority,
-        escrowAccount: escrowAccount.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .signers([taker])
-      .rpc();
+      console.log("escrow-state: ", escrowAccount);
 
-    const takerReceiveInfo = await getAccount(
-      connection,
-      takerReceiveTokenAccount.address
-    );
-    const initializerReceiveInfo = await getAccount(
-      connection,
-      initializerReceiveTokenAccount.address
-    );
+      expect(escrowAccount.initializer.toBase58()).be(initializer.publicKey.toBase58());
+      expect(escrowAccount.escrowAmount.toString()).be(amount.toString());
+      expect(escrowAccount.initializerDepositTokenAccount.toBase58()).be(initializerTokenA.toBase58());
+      expect(escrowAccount.vaultAuthorityBump).be(vaultBump);
 
-    assert.equal(Number(takerReceiveInfo.amount), escrowAmount);
-    assert.equal(Number(initializerReceiveInfo.amount), escrowAmount);
-
-    const escrowState = await program.account.escrowAccount.fetch(
-      escrowAccount.publicKey
-    );
-    assert.equal(escrowState.status, 1); // Completed
-  }).timeout(120_000);
+  });
 });

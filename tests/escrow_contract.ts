@@ -13,14 +13,17 @@ describe("test", () => {
 
   const program = anchor.workspace.escrow_contract as Program<EscrowContract>; // we are loding the smart contract from the workspace and type asserting it as a Program<EscrowContract> which comes from test/types
 
+  console.log(program.idl);
+
   let initializer: Keypair;
 
   let mintA: PublicKey;
+  let mintB: PublicKey;
   let initializerTokenA: PublicKey;
   let initializerTokenB: PublicKey;
 
   let escrowPda: PublicKey;
-  let vaultAuthorityPda: PublicKey;
+  let vaultAuthority: PublicKey;
   let vaultBump: number;
   let vaultTokenAccount: PublicKey;
 
@@ -28,10 +31,14 @@ describe("test", () => {
 
     initializer = Keypair.generate();
 
+    console.log("1");
+
     await provider.connection.confirmTransaction(
       await provider.connection.requestAirdrop(initializer.publicKey, 2e9)
     );
 
+    console.log('2');
+    
     mintA = await createMint(
       provider.connection,
       initializer,
@@ -40,10 +47,15 @@ describe("test", () => {
       9
     );
 
+        console.log('3');
+
+
     initializerTokenA = await createAccount(
       provider.connection, initializer,
       mintA, initializer.publicKey
     );
+
+        console.log('2');
 
     await mintTo(
       provider.connection,
@@ -54,13 +66,19 @@ describe("test", () => {
       1_000_000_000
     );
 
+        console.log('2');
+
+
     initializerTokenB = await createAccount(
       provider.connection, initializer,
       mintA, 
       initializer.publicKey
     );
 
-    [vaultAuthorityPda, vaultBump] = await PublicKey.findProgramAddressSync(
+        console.log('2');
+
+
+    [vaultAuthority, vaultBump] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("vault-authority"),
         initializer.publicKey.toBuffer(),
@@ -68,15 +86,21 @@ describe("test", () => {
       program.programId
     );
 
-    vaultTokenAccount = await anchor.utils.token.associatedAddress({
+        console.log('2');
+
+    vaultTokenAccount = anchor.utils.token.associatedAddress({
       mint: mintA,
-      owner: vaultAuthorityPda,
+      owner: vaultAuthority,
     })
+
+        console.log('2');
 
     escrowPda = Keypair.generate().publicKey;
 
-    const amount = new anchor.BN(500_000);
+        console.log('2');
 
+    const amount = new anchor.BN(500_000);
+    console.log("here")
     const tx = await program.methods
       .initialize(amount)
       .accounts({
@@ -84,11 +108,11 @@ describe("test", () => {
         initializerDepositTokenAccount: initializerTokenA,
         initializerReceiveTokenAccount: initializerTokenB,
         escrowAccount: escrowPda,
+        vaultAuthority: vaultAuthority,
         depositMint: mintA,
-        vaultAuthorityPda,
         vaultTokenAccount,
-        SystemProgram: SystemProgram.programId,
-        TOKEN_PROGRAM_ID
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID
       })
       .signers([initializer])
       .rpc();
@@ -100,10 +124,10 @@ describe("test", () => {
 
       console.log("escrow-state: ", escrowAccount);
 
-      expect(escrowAccount.initializer.toBase58()).be(initializer.publicKey.toBase58());
-      expect(escrowAccount.escrowAmount.toString()).be(amount.toString());
-      expect(escrowAccount.initializerDepositTokenAccount.toBase58()).be(initializerTokenA.toBase58());
-      expect(escrowAccount.vaultAuthorityBump).be(vaultBump);
+      expect(escrowAccount.initializer.toBase58()).to.be.equal(initializer.publicKey.toBase58());
+      expect(escrowAccount.escrowAmount.toString()).to.be.equal(amount.toString());
+      expect(escrowAccount.initializerDepositTokenAccount.toBase58()).to.be.equal(initializerTokenA.toBase58());
+      expect(escrowAccount.vaultAuthorityBump).to.be.equal(vaultBump);
 
   });
 });

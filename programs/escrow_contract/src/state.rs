@@ -10,4 +10,5 @@ pub struct EscrowState {
     pub mint_b_being_expected: u64,
     pub vault_authority_bump: u8,
     pub is_released: bool,
+    pub is_funded: bool,
 }

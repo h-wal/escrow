@@ -54,7 +54,7 @@ pub struct Initialize<'info> {
 
 impl<'info> Initialize<'info>{
 
-    pub fn init_escrow(&mut self, receiver: u64, amount: u64, expected_amount: u64, bump: u8) -> Result<()>{
+    pub fn init_escrow(&mut self, amount: u64, expected_amount: u64, bump: u8) -> Result<()>{
         
         self.escrow_account.set_inner(EscrowState { 
             initializer: self.initializer.key(), 

@@ -54,7 +54,7 @@ pub struct Initialize<'info> {
 
 impl<'info> Initialize<'info>{
 
-    pub fn init_escrow(&mut self, amount: u64, expected_amount: u64, bump: u8) -> Result<()>{
+    pub fn init_escrow(&mut self, amount: u64, expected_amount: u64, bump: &InitializeBumps) -> Result<()>{
         
         self.escrow_account.set_inner(EscrowState { 
             initializer: self.initializer.key(), 
@@ -62,7 +62,7 @@ impl<'info> Initialize<'info>{
             mint_b: self.mint_b.key(),
             mint_a_being_offered: amount, 
             mint_b_being_expected: expected_amount, 
-            vault_authority_bump: bump, 
+            vault_authority_bump: bump.escrow_account,
             is_released: false,
             is_funded: false
         });

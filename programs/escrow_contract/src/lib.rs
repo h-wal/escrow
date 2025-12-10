@@ -17,9 +17,10 @@ pub mod escrow_contract {
 
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>, amount: u64, receiver: u64) -> Result<()> {
-
-        ctx.accounts.init_escrow(receiver, amount, expected_amount, bump)
-        Ok(())
+    pub fn initialize(ctx: Context<Initialize>, amount: u64, expected_amount: u64) -> Result<()> {
+        ctx.accounts
+            .init_escrow(amount, expected_amount, &ctx.bumps)?;
+        ctx.accounts.fund_escrow(amount)
     }
 }
+
